@@ -3,3 +3,4 @@ pymongo
 djangorestframework
 markdown
 django-filter
+pika
