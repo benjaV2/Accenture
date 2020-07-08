@@ -1,6 +1,7 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from pymongo import MongoClient, errors
+import pika
 
 
 class db_check(APIView):
@@ -21,7 +22,7 @@ class db_insert(APIView):
         payload = [{'name': name} for name in names]
         try:
             dup = []
-            rs = table.insert_many(payload, ordered=False)
+            table.insert_many(payload, ordered=False)
         except errors.BulkWriteError as e:
             for error in e.details['writeErrors']:
                 if error['code'] == 11000:
@@ -29,6 +30,17 @@ class db_insert(APIView):
         new = list(set(names) - set(dup))
         print(request.data)
         print(new)
+        connection = pika.BlockingConnection(pika.ConnectionParameters(host='10.0.130.73'))
+        channel = connection.channel()
+        channel.queue_declare(queue='task_queue', durable=True)
+        for name in new:
+            channel.basic_publish(
+                exchange='',
+                routing_key='task_queue',
+                body=name,
+                properties=pika.BasicProperties(delivery_mode=2,)
+            )
+        connection.close()
         return Response(200)
 
 
