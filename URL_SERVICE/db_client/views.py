@@ -2,7 +2,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from pymongo import MongoClient, errors
 import pika
-
+import uuid
 
 class db_check(APIView):
 
@@ -38,7 +38,7 @@ class db_insert(APIView):
                 exchange='',
                 routing_key='task_queue',
                 body=name,
-                properties=pika.BasicProperties(delivery_mode=2,)
+                properties=pika.BasicProperties(delivery_mode=2, correlation_id=str(uuid.uuid4()))
             )
         connection.close()
         return Response(200)
