@@ -11,7 +11,10 @@ https://docs.djangoproject.com/en/3.0/ref/settings/
 """
 
 import os
+import socket
 
+TASK_QUEUE_IP = '10.0.130.73'
+URL_DB = '10.0.130.73'
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -25,7 +28,9 @@ SECRET_KEY = 'b@h0xd2s&gfxh)5wn4v+&#w4!h(yln_wixe561@zgj5gua50b5'
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+s.connect(('10.255.255.255', 1))
+ALLOWED_HOSTS = [s.getsockname()[0]]
 
 
 # Application definition

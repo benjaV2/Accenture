@@ -1,6 +1,7 @@
-from rest_framework.views import APIView
+from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from pymongo import MongoClient, errors
+from URL_SERVICE.settings import TASK_QUEUE_IP, URL_DB
 import pika
 import uuid
 import json
@@ -14,33 +15,36 @@ ch.setFormatter(formatter)
 logger.addHandler(ch)
 
 
-class db_insert(APIView):
+def insert_urls(urls):
+    client = MongoClient(URL_DB, 27017)
+    db = client["URL"]
+    table = db.U
+    payload = [{'url': url} for url in urls]
+    try:
+        dup = []
+        table.insert_many(payload, ordered=False)
+    except errors.BulkWriteError as e:
+        for error in e.details['writeErrors']:
+            if error['code'] == 11000:
+                dup.append(error["op"]["name"])
+    new_urls = list(set(urls) - set(dup))
+    return new_urls
 
-    def post(self, request):
-        client = MongoClient('10.0.130.73', 27017)
-        db = client["URL"]
-        table = db.U
-        urls = request.data['urls']
-        payload = [{'url': url} for url in urls]
-        try:
-            dup = []
-            table.insert_many(payload, ordered=False)
-        except errors.BulkWriteError as e:
-            for error in e.details['writeErrors']:
-                if error['code'] == 11000:
-                    dup.append(error["op"]["name"])
-        new_urls = list(set(urls) - set(dup))
-        connection = pika.BlockingConnection(pika.ConnectionParameters(host='10.0.130.73'))
-        channel = connection.channel()
-        channel.queue_declare(queue='task_queue', durable=True)
-        for url in new_urls:
-            channel.basic_publish(
+
+@api_view(('POST',))
+def insert(request):
+    new_urls = insert_urls(request.data['urls'])
+    connection = pika.BlockingConnection(pika.ConnectionParameters(host=TASK_QUEUE_IP))
+    channel = connection.channel()
+    channel.queue_declare(queue='task_queue', durable=True)
+    for url in new_urls:
+        channel.basic_publish(
                 exchange='',
                 routing_key='task_queue',
                 body=json.dumps({'url': url}),
                 properties=pika.BasicProperties(delivery_mode=2, correlation_id=str(uuid.uuid4()))
-            )
-        connection.close()
-        return Response(200)
+        )
+    connection.close()
+    return Response(200)
 
 

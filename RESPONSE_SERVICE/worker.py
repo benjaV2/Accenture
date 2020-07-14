@@ -3,7 +3,8 @@ import threading
 import json
 import logging
 import requests
-from settings import RESPONSE_QUEUE_IP, NUMBER_OF_THREADS
+from pymongo import MongoClient, errors
+from settings import RESPONSE_QUEUE_IP, NUMBER_OF_THREADS, E_MAIL_DB, URL_SERVICE_IP
 
 
 logger = logging.getLogger("response_service")
@@ -14,15 +15,30 @@ ch.setFormatter(formatter)
 logger.addHandler(ch)
 
 
+def insert_mails(mails):
+    client = MongoClient(E_MAIL_DB, 27017)
+    db = client["URL"]
+    table = db.M
+    payload = [{'mail': mail} for mail in mails]
+    try:
+        table.insert_many(payload, ordered=False)
+    except errors.BulkWriteError as e:
+        for error in e.details['writeErrors']:
+            logger.error(error)
+
+
 class response_worker(threading.Thread):
 
-    def __init__(self, _id):
+    def __init__(self):
         threading.Thread.__init__(self)
-        self.id = _id
 
     def callback(self, ch, method, props, body):
-        logger.info(f"thread: {self.id} message_received {props.correlation_id}")
-        logger.info(f"message {body}")
+        logger.info(f"{props.correlation_id} message received")
+        msg = json.loads(body)
+        mails = msg['mails']
+        insert_mails(mails)
+        urls = msg['urls']
+        requests.post(URL_SERVICE_IP, json={'urls': urls})
         ch.basic_ack(delivery_tag=method.delivery_tag)
 
     def prepare_consume_channel(self):
@@ -34,11 +50,11 @@ class response_worker(threading.Thread):
         return channel
 
     def run(self):
-        print(f"THREAD {self.id} LISTENING")
+        logger.info("start running")
         consume_ch = self.prepare_consume_channel()
         consume_ch.start_consuming()
 
 
 for _ in range(NUMBER_OF_THREADS):
-    td = response_worker(_)
+    td = response_worker()
     td.start()

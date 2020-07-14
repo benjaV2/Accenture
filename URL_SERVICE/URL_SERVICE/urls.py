@@ -19,5 +19,5 @@ from db_client import views
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('insert/', views.db_insert.as_view())
+    path('insert/', views.insert)
 ]
