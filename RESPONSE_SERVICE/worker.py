@@ -1,8 +1,8 @@
 import pika
 import threading
 import json
-import time
 import logging
+import requests
 from settings import RESPONSE_QUEUE_IP, NUMBER_OF_THREADS
 
 
